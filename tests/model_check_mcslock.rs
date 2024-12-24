@@ -1,7 +1,7 @@
 #[cfg(loom)]
 #[test]
 fn model_check_mcslock() {
-    use awkernel_lib::sync::{mcs::MCSLock, mutex::MCSNode};
+    use awkernel_sync::{mcs::MCSLock, mutex::MCSNode};
     use loom::{sync::Arc, thread};
 
     loom::model(|| {
