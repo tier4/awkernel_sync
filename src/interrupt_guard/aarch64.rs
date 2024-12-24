@@ -14,5 +14,5 @@ pub fn disable() {
 
 #[inline(always)]
 pub fn set_flag(flag: usize) {
-    asm!("msr daif, {}", in(reg) flag as u64);
+    unsafe { asm!("msr daif, {}", in(reg) flag as u64) };
 }
