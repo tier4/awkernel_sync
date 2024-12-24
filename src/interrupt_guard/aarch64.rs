@@ -1,6 +1,8 @@
 #[inline(always)]
 pub fn get_flag() -> usize {
-    awkernel_aarch64::daif::get() as usize
+    let v: u64;
+    unsafe { asm!("mrs {}, daif", lateout(reg) v) };
+    v as usize
 }
 
 #[inline(always)]
@@ -10,5 +12,5 @@ pub fn disable() {
 
 #[inline(always)]
 pub fn set_flag(flag: usize) {
-    unsafe { awkernel_aarch64::daif::set(flag as u64) };
+    asm!("msr daif, {}", in(reg) v as u64);
 }
