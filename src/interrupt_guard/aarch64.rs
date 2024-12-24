@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 #[inline(always)]
 pub fn get_flag() -> usize {
     let v: u64;
