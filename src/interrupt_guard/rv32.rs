@@ -14,8 +14,15 @@ pub fn disable() {
 #[inline(always)]
 pub fn set_flag(flag: usize) {
     if flag & 0x08 > 0 {
-        Self::enable();
+        enable();
     } else {
-        Self::disable();
+        disable();
     }
+}
+
+#[inline(always)]
+pub fn are_enabled() -> bool {
+    let x: usize;
+    unsafe { core::arch::asm!("csrr {}, mstatus", out(reg) x) };
+    (x & 0x08) > 0
 }

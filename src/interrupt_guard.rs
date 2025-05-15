@@ -61,5 +61,9 @@ impl InterruptGuard {
 impl Drop for InterruptGuard {
     fn drop(&mut self) {
         set_flag(self.flag);
+
+        if are_enabled() {
+            super::voluntary_preemption();
+        }
     }
 }

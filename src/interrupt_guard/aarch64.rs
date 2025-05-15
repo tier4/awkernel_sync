@@ -16,3 +16,10 @@ pub fn disable() {
 pub fn set_flag(flag: usize) {
     unsafe { asm!("msr daif, {}", in(reg) flag as u64) };
 }
+
+#[inline(always)]
+pub fn are_enabled() -> bool {
+    let v: u64;
+    unsafe { asm!("mrs {}, daif", lateout(reg) v) };
+    (v & (1 << 7)) == 0
+}

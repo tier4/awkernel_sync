@@ -20,3 +20,8 @@ pub fn set_flag(flag: usize) {
         x86_64::instructions::interrupts::enable();
     }
 }
+
+#[inline(always)]
+pub fn are_enabled() -> bool {
+    x86_64::instructions::interrupts::are_enabled()
+}
