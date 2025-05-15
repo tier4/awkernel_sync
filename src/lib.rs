@@ -20,7 +20,7 @@ fn voluntary_preemption() {
     preemption();
 }
 
-pub fn set_voluntary_preemption_fn(f: fn()) {
+pub fn set_voluntary_preemption_fn(f: unsafe fn()) {
     let ptr = f as *const () as *mut ();
     VOLUNTARY_PREEMPT_FN.store(ptr, Ordering::Relaxed);
 }
