@@ -14,6 +14,7 @@ static VOLUNTARY_PREEMPT_FN: AtomicPtr<()> = AtomicPtr::new(empty as *mut ());
 
 fn empty() {}
 
+#[inline(always)]
 fn voluntary_preemption() {
     let voluntary_preemption = VOLUNTARY_PREEMPT_FN.load(Ordering::Relaxed);
     let preemption = unsafe { core::mem::transmute::<*mut (), fn()>(voluntary_preemption) };
