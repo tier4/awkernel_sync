@@ -118,16 +118,7 @@ impl<T: Send> MCSLock<T> {
         prev.next.store(ptr, Ordering::Release);
 
         // spin until other thread sets locked true
-        #[cfg(not(feature = "x86_mwait"))]
-        while !guard.node.locked.load(Ordering::Relaxed) {
-            hint::spin_loop();
-
-            #[cfg(loom)]
-            loom::thread::yield_now();
-        }
-
-        #[cfg(feature = "x86_mwait")]
-        super::mwait::wait(guard.node.locked.as_ptr(), false);
+        super::mwait::wait_while_false(&guard.node.locked);
 
         fence(Ordering::Acquire);
 

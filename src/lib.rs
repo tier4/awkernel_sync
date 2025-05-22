@@ -7,11 +7,9 @@ extern crate alloc;
 mod interrupt_guard;
 pub mod mcs;
 pub mod mutex;
+mod mwait;
 pub mod rwlock;
 pub mod spinlock;
-
-#[cfg(feature = "x86_mwait")]
-mod mwait;
 
 static VOLUNTARY_PREEMPT_FN: AtomicPtr<()> = AtomicPtr::new(empty as *mut ());
 

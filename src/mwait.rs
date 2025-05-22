@@ -1,5 +1,3 @@
-use core::ptr::read_volatile;
-
 #[cfg(feature = "x86_mwait")]
 mod x86_mwait {
     use core::{ptr::read_volatile, sync::atomic::AtomicUsize};
@@ -51,27 +49,26 @@ mod x86_mwait {
     }
 }
 
-/// Wait while the value at the given address is equal to the specified value.
-#[inline(always)]
-fn wait_spin<T: Eq>(addr: *const T, value: T) {
-    unsafe {
-        while read_volatile(addr) == value {
-            core::hint::spin_loop();
+#[cfg(not(loom))]
+use core::{
+    hint,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-            #[cfg(loom)]
-            loom::thread::yield_now();
+#[cfg(loom)]
+use loom::{
+    hint,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-            break;
-        }
-    }
-}
-
-#[cfg(feature = "x86_mwait")]
-pub(crate) use x86_mwait::wait;
-
-/// Wait while the value at the given address is equal to the specified value.
+/// Wait while the value at the given address is equal to `false`.
 #[cfg(not(feature = "x86_mwait"))]
 #[inline(always)]
-pub(crate) fn wait<T: Eq>(addr: *const T, value: T) {
-    wait_spin(addr, value);
+pub(crate) fn wait_while_false(val: &AtomicBool) {
+    while !val.load(Ordering::Relaxed) {
+        hint::spin_loop();
+
+        #[cfg(loom)]
+        loom::thread::yield_now();
+    }
 }
