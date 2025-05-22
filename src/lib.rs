@@ -10,7 +10,7 @@ pub mod mutex;
 pub mod rwlock;
 pub mod spinlock;
 
-#[cfg(not(loom))]
+#[cfg(feature = "x86_mwait")]
 mod mwait;
 
 static VOLUNTARY_PREEMPT_FN: AtomicPtr<()> = AtomicPtr::new(empty as *mut ());
