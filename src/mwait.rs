@@ -1,7 +1,7 @@
 #[cfg(feature = "x86_mwait")]
 mod x86_mwait {
     use core::{
-        arch::x86_64::__cpuid,
+        arch::{asm, x86_64::__cpuid},
         sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
@@ -41,8 +41,6 @@ mod x86_mwait {
     /// Wait while the value at the given address is equal to `false`.
     #[inline(always)]
     pub(crate) fn wait_while_false(val: &AtomicBool) {
-        use core::sync::atomic::Ordering;
-
         let supported = MWAIT_SUPPORTED.load(Ordering::Relaxed);
 
         if supported == NOT_INITIALIZED {
@@ -78,18 +76,52 @@ mod x86_mwait {
         // Common QEMU environments
         hv_vendor.starts_with(b"TCGTCGTCG")
     }
+
+    /// Wait while the value at the given address is equal to `current`.
+    #[inline(always)]
+    fn wait_while_equal_mwait(val: &AtomicUsize, current: usize, ordering: Ordering) {
+        let addr = val.as_ptr();
+
+        unsafe {
+            asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
+
+            while val.load(ordering) == current {
+                asm!("mwait", in("rax") 0, in("rcx") 0);
+            }
+        }
+    }
+
+    /// Wait while the value at the given address is equal to `current`.
+    #[inline(always)]
+    pub(crate) fn wait_while_equal(val: &AtomicUsize, current: usize, ordering: Ordering) {
+        let supported = MWAIT_SUPPORTED.load(Ordering::Relaxed);
+
+        if supported == NOT_INITIALIZED {
+            if has_monitor_mwait() {
+                MWAIT_SUPPORTED.store(SUPPORTED, Ordering::Relaxed);
+                wait_while_equal_mwait(val, current, ordering);
+            } else {
+                MWAIT_SUPPORTED.store(NOT_SUPPORTED, Ordering::Relaxed);
+                super::wait_while_equal_spin(val, current, ordering);
+            }
+        } else if supported == SUPPORTED {
+            wait_while_equal_mwait(val, current, ordering);
+        } else if supported == NOT_SUPPORTED {
+            super::wait_while_equal_spin(val, current, ordering);
+        }
+    }
 }
 
 #[cfg(not(loom))]
 use core::{
     hint,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 #[cfg(loom)]
 use loom::{
     hint,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 /// Wait while the value at the given address is equal to `false`.
@@ -107,8 +139,32 @@ pub(crate) fn wait_while_false(val: &AtomicBool) {
 }
 
 #[inline(always)]
-pub(crate) fn wait_while_false_spin(val: &AtomicBool) {
+fn wait_while_false_spin(val: &AtomicBool) {
     while !val.load(Ordering::Relaxed) {
+        hint::spin_loop();
+
+        #[cfg(loom)]
+        loom::thread::yield_now();
+    }
+}
+
+/// Wait while the value at the given address is equal to `current`.
+#[cfg(not(feature = "x86_mwait"))]
+#[inline(always)]
+pub(crate) fn wait_while_equal(val: &AtomicUsize, current: usize, ordering: Ordering) {
+    wait_while_equal_spin(val, current, ordering);
+}
+
+/// Wait while the value at the given address is equal to `current`.
+#[cfg(feature = "x86_mwait")]
+#[inline(always)]
+pub(crate) fn wait_while_equal(val: &AtomicUsize, current: usize, ordering: Ordering) {
+    x86_mwait::wait_while_equal(val, current, ordering);
+}
+
+#[inline(always)]
+fn wait_while_equal_spin(val: &AtomicUsize, current: usize, ordering: Ordering) {
+    while val.load(ordering) == current {
         hint::spin_loop();
 
         #[cfg(loom)]

@@ -68,12 +68,7 @@ impl<T: Send> RwLock<T> {
             }
 
             if s & 1 == 1 {
-                while self.state.load(Ordering::Relaxed) == s {
-                    hint::spin_loop();
-
-                    #[cfg(loom)]
-                    loom::thread::yield_now();
-                }
+                super::mwait::wait_while_equal(&self.state, s, Ordering::Relaxed);
                 s = self.state.load(Ordering::Relaxed);
             }
 
@@ -127,12 +122,7 @@ impl<T: Send> RwLock<T> {
             s = self.state.load(Ordering::Relaxed);
 
             if s >= 2 {
-                while self.writer_wake_counter.load(Ordering::Acquire) == w {
-                    hint::spin_loop();
-
-                    #[cfg(loom)]
-                    loom::thread::yield_now();
-                }
+                super::mwait::wait_while_equal(&self.writer_wake_counter, w, Ordering::Acquire);
                 s = self.state.load(Ordering::Relaxed);
             }
 
