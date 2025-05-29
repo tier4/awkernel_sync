@@ -1,6 +1,6 @@
 #[cfg(feature = "x86_mwait")]
 mod x86_mwait {
-    use core::{ptr::read_volatile, sync::atomic::AtomicUsize};
+    use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     static MWAIT_SUPPORTED: AtomicUsize = AtomicUsize::new(0);
 
@@ -15,20 +15,24 @@ mod x86_mwait {
         (res.ecx & 0x1) != 0
     }
 
-    fn mwait<T: Eq>(addr: *const T, value: T) {
+    /// Wait while the value at the given address is equal to `false`.
+    fn wait_while_false_mwait(val: &AtomicBool) {
         use core::arch::asm;
+
+        let addr = val.as_ptr();
 
         unsafe {
             asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
 
-            while read_volatile(addr) == value {
+            while !val.load(Ordering::Relaxed) {
                 asm!("mwait", in("rax") 0, in("rcx") 0);
             }
         }
     }
 
-    /// Wait while the value at the given address is equal to the specified value.
-    pub(crate) fn wait<T: Eq>(addr: *const T, value: T) {
+    /// Wait while the value at the given address is equal to `false`.
+    #[inline(always)]
+    pub(crate) fn wait_while_false(val: &AtomicBool) {
         use core::sync::atomic::Ordering;
 
         let supported = MWAIT_SUPPORTED.load(Ordering::Relaxed);
@@ -36,15 +40,15 @@ mod x86_mwait {
         if supported == NOT_INITIALIZED {
             if has_monitor_mwait() {
                 MWAIT_SUPPORTED.store(SUPPORTED, Ordering::Relaxed);
-                mwait(addr, value);
+                wait_while_false_mwait(val);
             } else {
                 MWAIT_SUPPORTED.store(NOT_SUPPORTED, Ordering::Relaxed);
-                super::wait_spin(addr, value);
+                super::wait_while_false_spin(val);
             }
         } else if supported == SUPPORTED {
-            mwait(addr, value);
+            wait_while_false_mwait(val);
         } else if supported == NOT_SUPPORTED {
-            super::wait_spin(addr, value);
+            super::wait_while_false_spin(val);
         }
     }
 }
@@ -65,6 +69,18 @@ use loom::{
 #[cfg(not(feature = "x86_mwait"))]
 #[inline(always)]
 pub(crate) fn wait_while_false(val: &AtomicBool) {
+    wait_while_false_spin(val);
+}
+
+/// Wait while the value at the given address is equal to `false`.
+#[cfg(feature = "x86_mwait")]
+#[inline(always)]
+pub(crate) fn wait_while_false(val: &AtomicBool) {
+    x86_mwait::wait_while_false(val);
+}
+
+#[inline(always)]
+pub(crate) fn wait_while_false_spin(val: &AtomicBool) {
     while !val.load(Ordering::Relaxed) {
         hint::spin_loop();
 
