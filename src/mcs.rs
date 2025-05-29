@@ -3,7 +3,6 @@ use core::{marker::PhantomData, ptr::null_mut};
 #[cfg(not(loom))]
 use core::{
     cell::UnsafeCell,
-    hint,
     ops::{Deref, DerefMut},
     sync::atomic::{fence, AtomicBool, AtomicPtr, Ordering},
 };
@@ -11,7 +10,6 @@ use core::{
 #[cfg(loom)]
 use loom::{
     cell::UnsafeCell,
-    hint,
     sync::atomic::{fence, AtomicBool, AtomicPtr, Ordering},
 };
 
@@ -168,12 +166,7 @@ impl<T: Send> Drop for MCSLockGuard<'_, T> {
             }
 
             // other thread is entering lock and wait the execution
-            while self.node.next.load(Ordering::Relaxed).is_null() {
-                hint::spin_loop();
-
-                #[cfg(loom)]
-                loom::thread::yield_now();
-            }
+            super::mwait::wait_while_null(&self.node.next);
         }
 
         // make next thread executable
