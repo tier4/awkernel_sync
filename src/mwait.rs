@@ -1,6 +1,9 @@
 #[cfg(feature = "x86_mwait")]
 mod x86_mwait {
-    use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use core::{
+        arch::x86_64::__cpuid,
+        sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
 
     static MWAIT_SUPPORTED: AtomicUsize = AtomicUsize::new(0);
 
@@ -10,6 +13,11 @@ mod x86_mwait {
 
     /// Check whether Monitor/MWAIT is supported.
     fn has_monitor_mwait() -> bool {
+        if is_qemu() {
+            // QEMU does not support MWAIT, so we return false.
+            return false;
+        }
+
         use core::arch::x86_64::__cpuid_count;
         let res = unsafe { __cpuid_count(5, 0) };
         (res.ecx & 0x1) != 0
@@ -50,6 +58,25 @@ mod x86_mwait {
         } else if supported == NOT_SUPPORTED {
             super::wait_while_false_spin(val);
         }
+    }
+
+    fn is_qemu() -> bool {
+        // Step 1: Check if hypervisor bit is set
+        let cpuid_1 = unsafe { __cpuid(1) };
+        let has_hypervisor = (cpuid_1.ecx & (1 << 31)) != 0;
+        if !has_hypervisor {
+            return false;
+        }
+
+        // Step 2: Get hypervisor vendor ID from 0x40000000
+        let cpuid_hv = unsafe { __cpuid(0x4000_0000) };
+        let mut hv_vendor = [0u8; 12];
+        hv_vendor[0..4].copy_from_slice(&cpuid_hv.ebx.to_le_bytes());
+        hv_vendor[4..8].copy_from_slice(&cpuid_hv.ecx.to_le_bytes());
+        hv_vendor[8..12].copy_from_slice(&cpuid_hv.edx.to_le_bytes());
+
+        // Common QEMU environments
+        hv_vendor.starts_with(b"TCGTCGTCG")
     }
 }
 
