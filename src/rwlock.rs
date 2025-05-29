@@ -6,14 +6,12 @@ use core::{
 #[cfg(not(loom))]
 use core::{
     cell::UnsafeCell,
-    hint,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 #[cfg(loom)]
 use loom::{
     cell::UnsafeCell,
-    hint,
     sync::atomic::{AtomicUsize, Ordering},
 };
 

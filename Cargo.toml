@@ -5,7 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [features]
-default = ["x86"]
+default = []
 std = ["dep:parking_lot"]
 x86 = ["dep:x86_64"]
 x86_mwait = []
