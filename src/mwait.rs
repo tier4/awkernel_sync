@@ -1,7 +1,10 @@
 #[cfg(feature = "x86_mwait")]
 mod x86_mwait {
     use core::{
-        arch::{asm, x86_64::__cpuid},
+        arch::{
+            asm,
+            x86_64::{__cpuid, __cpuid_count},
+        },
         sync::atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering},
     };
 
@@ -18,15 +21,12 @@ mod x86_mwait {
             return false;
         }
 
-        use core::arch::x86_64::__cpuid_count;
         let res = unsafe { __cpuid_count(5, 0) };
         (res.ecx & 0x1) != 0
     }
 
     /// Wait while the value at the given address is equal to `false`.
     fn wait_while_false_mwait(val: &AtomicBool) {
-        use core::arch::asm;
-
         let addr = val.as_ptr();
 
         unsafe {
