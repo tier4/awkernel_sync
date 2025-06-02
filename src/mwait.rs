@@ -29,14 +29,12 @@ mod x86_mwait {
     fn wait_while_false_mwait(val: &AtomicBool) {
         let addr = val.as_ptr();
 
-        if val.load(Ordering::Relaxed) {
-            return;
-        }
-
         unsafe {
-            asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
-
             while !val.load(Ordering::Relaxed) {
+                asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
+                if val.load(Ordering::Relaxed) {
+                    break;
+                }
                 asm!("mwait", in("rax") 0, in("rcx") 0);
             }
         }
@@ -86,14 +84,12 @@ mod x86_mwait {
     fn wait_while_equal_mwait(val: &AtomicUsize, current: usize, ordering: Ordering) {
         let addr = val.as_ptr();
 
-        if val.load(ordering) != current {
-            return;
-        }
-
         unsafe {
-            asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
-
             while val.load(ordering) == current {
+                asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
+                if val.load(ordering) != current {
+                    break;
+                }
                 asm!("mwait", in("rax") 0, in("rcx") 0);
             }
         }
@@ -124,14 +120,12 @@ mod x86_mwait {
     fn wait_while_null_mwait<T>(val: &AtomicPtr<T>) {
         let addr = val.as_ptr();
 
-        if !val.load(Ordering::Relaxed).is_null() {
-            return;
-        }
-
         unsafe {
-            asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
-
             while val.load(Ordering::Relaxed).is_null() {
+                asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
+                if !val.load(Ordering::Relaxed).is_null() {
+                    break;
+                }
                 asm!("mwait", in("rax") 0, in("rcx") 0);
             }
         }
