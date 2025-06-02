@@ -29,6 +29,10 @@ mod x86_mwait {
     fn wait_while_false_mwait(val: &AtomicBool) {
         let addr = val.as_ptr();
 
+        if val.load(Ordering::Relaxed) {
+            return;
+        }
+
         unsafe {
             asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
 
@@ -82,6 +86,10 @@ mod x86_mwait {
     fn wait_while_equal_mwait(val: &AtomicUsize, current: usize, ordering: Ordering) {
         let addr = val.as_ptr();
 
+        if val.load(ordering) != current {
+            return;
+        }
+
         unsafe {
             asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
 
@@ -115,6 +123,10 @@ mod x86_mwait {
     #[inline(always)]
     fn wait_while_null_mwait<T>(val: &AtomicPtr<T>) {
         let addr = val.as_ptr();
+
+        if !val.load(Ordering::Relaxed).is_null() {
+            return;
+        }
 
         unsafe {
             asm!("monitor", in("rax") addr, in("rcx") 0, in("edx") 0);
