@@ -4,7 +4,7 @@ use core::sync::atomic::{AtomicPtr, Ordering};
 
 extern crate alloc;
 
-mod interrupt_guard;
+pub mod interrupt_guard;
 pub mod mcs;
 pub mod mutex;
 mod mwait;

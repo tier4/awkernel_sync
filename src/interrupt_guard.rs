@@ -44,7 +44,7 @@ compile_error!(
 ///
 /// ```
 /// {
-///     use awkernel_lib::interrupt::InterruptGuard;
+///     use awkernel_sync::interrupt_guard::InterruptGuard;
 ///
 ///     let _int_guard = InterruptGuard::new();
 ///     // interrupts are disabled.

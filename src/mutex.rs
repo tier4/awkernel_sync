@@ -34,7 +34,7 @@ pub type LockGuard<'a, T> = parking_lot::MutexGuard<'a, T>;
 /// # Example
 ///
 /// ```
-/// use awkernel_lib::sync::mutex::{MCSNode, Mutex};
+/// use awkernel_sync::mutex::{MCSNode, Mutex};
 /// use std::{thread, sync::Arc};
 ///
 /// let data = Arc::new(Mutex::new(0));
