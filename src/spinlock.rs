@@ -22,7 +22,7 @@ impl<T> SpinLock<T> {
     }
 
     #[inline(always)]
-    pub fn try_lock(&self) -> Option<SpinLockGuard<T>> {
+    pub fn try_lock(&self) -> Option<SpinLockGuard<'_, T>> {
         let _interrupt_guard = crate::interrupt_guard::InterruptGuard::new();
         if self
             .lock_var
@@ -40,7 +40,7 @@ impl<T> SpinLock<T> {
     }
 
     #[inline(always)]
-    pub fn lock(&self) -> SpinLockGuard<T> {
+    pub fn lock(&self) -> SpinLockGuard<'_, T> {
         let _interrupt_guard = loop {
             if !self.lock_var.load(Ordering::Relaxed) {
                 let interrupt_guard = crate::interrupt_guard::InterruptGuard::new();

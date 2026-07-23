@@ -42,7 +42,7 @@ impl<T: Send> RwLock<T> {
 
     /// acquire reader lock
     #[inline(always)]
-    pub fn read(&self) -> RwLockReadGuard<T> {
+    pub fn read(&self) -> RwLockReadGuard<'_, T> {
         let _interrupt_guard = crate::interrupt_guard::InterruptGuard::new();
 
         let mut s = self.state.load(Ordering::Relaxed);
@@ -77,7 +77,7 @@ impl<T: Send> RwLock<T> {
 
     /// acquire writer lock
     #[inline(always)]
-    pub fn write(&self) -> RwLockWriteGuard<T> {
+    pub fn write(&self) -> RwLockWriteGuard<'_, T> {
         let _interrupt_guard = crate::interrupt_guard::InterruptGuard::new();
 
         let mut s = self.state.load(Ordering::Relaxed);
