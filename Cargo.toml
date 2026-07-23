@@ -6,6 +6,7 @@ build = "build.rs"
 description = "no_std synchronization primitives (mutex, rwlock, spinlock, MCS lock) with interrupt guards for the Awkernel operating system."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/tier4/awkernel_sync"
+readme = "README.md"
 
 [features]
 default = []
