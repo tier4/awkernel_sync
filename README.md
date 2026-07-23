@@ -16,7 +16,7 @@ context.
 | `mcs::MCSLock` | MCS queue lock; fair and cache-friendly under contention. Requires a per-caller `MCSNode`. |
 | `spinlock::SpinLock` | Simple test-and-set spin lock. |
 | `rwlock::RwLock` | Reader-writer lock. |
-| `interrupt_guard::InterruptGuard` | RAII guard that disables interrupts on creation and restores the previous state on drop. |
+| `InterruptGuard` | RAII guard that disables interrupts on creation and restores the previous state on drop. |
 
 ## Features
 
@@ -80,7 +80,7 @@ let lock = RwLock::new(5);
 ### `InterruptGuard`
 
 ```rust
-use awkernel_sync::interrupt_guard::InterruptGuard;
+use awkernel_sync::InterruptGuard;
 
 {
     let _guard = InterruptGuard::new();
