@@ -28,6 +28,18 @@ mod rv32;
 #[cfg(feature = "rv32")]
 pub use crate::interrupt_guard::rv32::*;
 
+#[cfg(not(any(
+    feature = "x86",
+    feature = "aarch64",
+    feature = "std",
+    feature = "rv64",
+    feature = "rv32"
+)))]
+compile_error!(
+    "awkernel_sync requires exactly one architecture feature to be enabled: \
+     one of `x86`, `aarch64`, `std`, `rv64`, or `rv32`."
+);
+
 /// Disable interrupts and automatically restored the configuration.
 ///
 /// ```
