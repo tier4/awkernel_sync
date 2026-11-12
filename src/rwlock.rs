@@ -119,7 +119,10 @@ impl<T: Send> RwLock<T> {
             let w = self.writer_wake_counter.load(Ordering::Acquire);
             s = self.state.load(Ordering::Relaxed);
 
-            if s >= 2 {
+            // A release increments `writer_wake_counter` only when a writer holds
+            // the lock or the writer bit is set, that is, when `s` is odd. If `s`
+            // is even, loop and set the bit before waiting.
+            if s >= 2 && s & 1 == 1 {
                 super::mwait::wait_while_equal(&self.writer_wake_counter, w, Ordering::Acquire);
                 s = self.state.load(Ordering::Relaxed);
             }
