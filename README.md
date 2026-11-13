@@ -95,8 +95,28 @@ use awkernel_sync::InterruptGuard;
 The checks live in `tests/` and are gated behind the `loom` cfg:
 
 ```sh
-RUSTFLAGS="--cfg loom" cargo test --features std
+sh loom.sh
 ```
+
+The script defaults to at most two preemptions per execution. Set
+`LOOM_MAX_PREEMPTIONS` to explore a larger bound, for example:
+
+```sh
+LOOM_MAX_PREEMPTIONS=3 sh loom.sh
+```
+
+The `RwLock` models cover reader/writer, reader/reader, and writer/writer
+contention with two worker threads each. A separate unit test uses test-only
+hooks in the writer implementation to reproduce the lost-wakeup interleaving
+from PR #1: another writer releases the lock, a reader enters after the waiting
+writer loads the wake counter, and that reader releases without incrementing
+the counter. The test rejects entering the wait with this stale snapshot and
+checks that the writer acquires and releases the lock instead. It also runs
+with `cargo test --features std` without Loom.
+
+Wait loops do not prune exploration. The preemption bound still limits coverage;
+these tests are not an exhaustive proof of correctness or freedom from
+starvation. The test hooks are absent from non-test builds.
 
 ## License
 

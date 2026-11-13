@@ -1,17 +1,31 @@
-#[cfg(loom)]
+#![cfg(loom)]
+
 #[test]
 fn model_check_rwlock() {
+    check_rwlock(1, 1, 2);
+}
+
+#[test]
+fn model_check_rwlock_multiple_readers() {
+    check_rwlock(2, 0, 2);
+}
+
+#[test]
+fn model_check_rwlock_repeated_writes() {
+    check_rwlock(0, 2, 2);
+}
+
+fn check_rwlock(num_readers: usize, num_writers: usize, num_iterations: usize) {
     use awkernel_sync::rwlock;
     use loom::sync::Arc;
 
-    loom::model(|| {
+    let mut model = loom::model::Builder::new();
+    // Keep the default run practical; LOOM_MAX_PREEMPTIONS can expand coverage.
+    model.preemption_bound.get_or_insert(2);
+    model.check(move || {
         let n = Arc::new(rwlock::RwLock::new(0));
         let mut readers = Vec::new();
         let mut writers = Vec::new();
-
-        let num_readers = 1;
-        let num_writers = 2;
-        let num_iterations = 1;
 
         for _ in 0..num_readers {
             let n0 = n.clone();
@@ -19,7 +33,7 @@ fn model_check_rwlock() {
                 for _ in 0..num_iterations {
                     let r = n0.read();
                     let data = r.with(|data| unsafe { *data });
-                    assert_eq!(data, 0);
+                    assert!(data <= num_writers * num_iterations);
                 }
             });
 
@@ -33,7 +47,6 @@ fn model_check_rwlock() {
                     let mut r = n0.write();
                     r.with_mut(|data| unsafe {
                         *data += 1;
-                        *data -= 1;
                     });
                 }
             });
@@ -48,5 +61,8 @@ fn model_check_rwlock() {
         for t in writers {
             t.join().unwrap();
         }
+
+        let data = n.read().with(|data| unsafe { *data });
+        assert_eq!(data, num_writers * num_iterations);
     });
 }
