@@ -1,6 +1,6 @@
 [package]
 name = "awkernel_sync"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 build = "build.rs"
 description = "no_std synchronization primitives (mutex, rwlock, spinlock, MCS lock) with interrupt guards for the Awkernel operating system."
