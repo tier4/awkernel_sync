@@ -155,9 +155,6 @@ pub(crate) fn wait_while_false(val: &AtomicBool) {
 fn wait_while_false_spin(val: &AtomicBool) {
     while !val.load(Ordering::Relaxed) {
         hint::spin_loop();
-
-        #[cfg(loom)]
-        loom::thread::yield_now();
     }
 }
 
@@ -178,10 +175,8 @@ pub(crate) fn wait_while_equal(val: &AtomicUsize, current: usize, ordering: Orde
 #[inline(always)]
 fn wait_while_equal_spin(val: &AtomicUsize, current: usize, ordering: Ordering) {
     while val.load(ordering) == current {
+        // loom::hint::spin_loop() already calls loom::thread::yield_now().
         hint::spin_loop();
-
-        #[cfg(loom)]
-        loom::thread::yield_now();
     }
 }
 
@@ -203,8 +198,5 @@ pub(crate) fn wait_while_null<T>(val: &AtomicPtr<T>) {
 fn wait_while_null_spin<T>(val: &AtomicPtr<T>) {
     while val.load(Ordering::Relaxed).is_null() {
         hint::spin_loop();
-
-        #[cfg(loom)]
-        loom::thread::yield_now();
     }
 }

@@ -21,6 +21,15 @@ pub struct RwLock<T: Send> {
     data: UnsafeCell<T>,
 }
 
+// Test-only scheduling points for the writer lost-wakeup regression.
+#[cfg(test)]
+enum WriteStep {
+    BeforeWakeCounterLoad(usize),
+    WakeCounterLoaded(usize),
+    StateReloaded(usize),
+    BeforeWait,
+}
+
 impl<T: Send> RwLock<T> {
     #[cfg(not(loom))]
     pub const fn new(v: T) -> RwLock<T> {
@@ -78,6 +87,14 @@ impl<T: Send> RwLock<T> {
     /// acquire writer lock
     #[inline(always)]
     pub fn write(&self) -> RwLockWriteGuard<'_, T> {
+        self.write_inner(
+            #[cfg(test)]
+            |_| {},
+        )
+    }
+
+    #[inline(always)]
+    fn write_inner(&self, #[cfg(test)] mut step: impl FnMut(WriteStep)) -> RwLockWriteGuard<'_, T> {
         let _interrupt_guard = crate::interrupt_guard::InterruptGuard::new();
 
         let mut s = self.state.load(Ordering::Relaxed);
@@ -116,13 +133,26 @@ impl<T: Send> RwLock<T> {
                 }
             }
 
+            #[cfg(test)]
+            step(WriteStep::BeforeWakeCounterLoad(s));
+
             let w = self.writer_wake_counter.load(Ordering::Acquire);
+
+            #[cfg(test)]
+            step(WriteStep::WakeCounterLoaded(w));
+
             s = self.state.load(Ordering::Relaxed);
+
+            #[cfg(test)]
+            step(WriteStep::StateReloaded(s));
 
             // A release increments `writer_wake_counter` only when a writer holds
             // the lock or the writer bit is set, that is, when `s` is odd. If `s`
             // is even, loop and set the bit before waiting.
             if s >= 2 && s & 1 == 1 {
+                #[cfg(test)]
+                step(WriteStep::BeforeWait);
+
                 super::mwait::wait_while_equal(&self.writer_wake_counter, w, Ordering::Acquire);
                 s = self.state.load(Ordering::Relaxed);
             }
@@ -187,16 +217,8 @@ impl<T: Send> AsRef<T> for RwLockWriteGuard<'_, T> {
     }
 }
 
-unsafe impl<T: Send> Sync for RwLock<T> {}
+unsafe impl<T: Send + Sync> Sync for RwLock<T> {}
 unsafe impl<T: Send> Send for RwLock<T> {}
-
-#[cfg(not(loom))]
-impl<T: Send> AsMut<T> for RwLockReadGuard<'_, T> {
-    #[inline(always)]
-    fn as_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.rwlock.data.get() }
-    }
-}
 
 #[cfg(not(loom))]
 impl<T: Send> AsRef<T> for RwLockReadGuard<'_, T> {
@@ -279,5 +301,66 @@ impl<'a, T: Send> Deref for RwLockWriteGuard<'a, T> {
 impl<'a, T: Send> DerefMut for RwLockWriteGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unimplemented!("loom does not support deref_mut");
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::{Ordering, RwLock, WriteStep};
+
+    #[test]
+    fn writer_retries_after_reader_without_pending_writer_bit() {
+        let scenario = || {
+            let lock = RwLock::new(());
+            let mut writer_b = Some(lock.write());
+            let mut reader = None;
+            let mut phase = 0;
+
+            // Reproduce PR #1's interleaving with real lock operations. Hooks
+            // preserve writer A's local snapshots while B and the reader run.
+            let writer_a = lock.write_inner(|step| match step {
+                WriteStep::BeforeWakeCounterLoad(state) => {
+                    assert_eq!(phase, 0);
+                    assert_eq!(state, usize::MAX);
+                    // A saw B holding the lock and did not set a writer bit.
+                    drop(writer_b.take().unwrap());
+                    phase = 1;
+                }
+                WriteStep::WakeCounterLoaded(counter) => {
+                    assert_eq!(phase, 1);
+                    assert_eq!(counter, 1);
+                    // B has released; the reader enters after A reads the
+                    // wake counter, but before A reloads the lock state.
+                    reader = Some(lock.read());
+                    phase = 2;
+                }
+                WriteStep::StateReloaded(state) => {
+                    assert_eq!(phase, 2);
+                    assert_eq!(state, 2);
+                    // A has observed a reader with no pending writer bit.
+                    // Its release does not send a writer notification.
+                    drop(reader.take().unwrap());
+                    assert_eq!(lock.state.load(Ordering::Relaxed), 0);
+                    assert_eq!(lock.writer_wake_counter.load(Ordering::Relaxed), 1);
+                    phase = 3;
+                }
+                WriteStep::BeforeWait => {
+                    // Fail at the erroneous decision instead of hanging on
+                    // a counter that no remaining participant can change.
+                    panic!("writer waited for a notification with no pending writer bit");
+                }
+            });
+
+            assert_eq!(phase, 3);
+            assert_eq!(lock.state.load(Ordering::Relaxed), usize::MAX);
+            drop(writer_a);
+            assert_eq!(lock.state.load(Ordering::Relaxed), 0);
+            assert_eq!(lock.writer_wake_counter.load(Ordering::Relaxed), 2);
+        };
+
+        #[cfg(loom)]
+        loom::model(scenario);
+        #[cfg(not(loom))]
+        scenario();
     }
 }
